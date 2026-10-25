@@ -4,8 +4,8 @@
 
 Well plate(4–384 well)의 샘플 위치, 처리 조건, 사용 기록을 관리하는 웹앱입니다.
 
-- 한국어: https://heasilmoon.github.io/plate-map/ko/
-- English: https://heasilmoon.github.io/plate-map/en/
+- 한국어: https://heasilmoon.github.io/Plate-Map/ko/
+- English: https://heasilmoon.github.io/Plate-Map/en/
 
 ### 주요 기능
 - 실험(plate) 등록: 프로젝트, 상태, 시딩 날짜(Day 0), 실험 날짜, plate 종류
@@ -44,8 +44,8 @@ Well plate(4–384 well)의 샘플 위치, 처리 조건, 사용 기록을 관�
 
 A web app for tracking sample positions, treatments and used wells on 4–384 well plates.
 
-- Korean: https://heasilmoon.github.io/plate-map/ko/
-- English: https://heasilmoon.github.io/plate-map/en/
+- Korean: https://heasilmoon.github.io/Plate-Map/ko/
+- English: https://heasilmoon.github.io/Plate-Map/en/
 
 ### Features
 - Register experiments (plates): project, status, seeding date (Day 0), experiment date, plate format
