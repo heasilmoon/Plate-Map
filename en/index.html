@@ -1138,43 +1138,6 @@ try { localStorage.setItem("plate-tracker-lang", document.documentElement.lang);
 renderAll();
 })();
 </script>
-<script type="module">
-// Google login + real-time cloud sync (Firebase). If this fails to load, the app keeps working on this device only.
-import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
-const app = initializeApp({"apiKey": "AIzaSyAahIgcefZ1dx_OTLbHESbQrU_64raQvTw", "authDomain": "plate-map-a860c.firebaseapp.com", "projectId": "plate-map-a860c", "storageBucket": "plate-map-a860c.firebasestorage.app", "messagingSenderId": "291692292128", "appId": "1:291692292128:web:5359bef77aec9b2d217445"});
-const auth = getAuth(app);
-let db;
-try { db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
-catch (_) { db = initializeFirestore(app, {}); }
-getRedirectResult(auth).catch(() => {});
-let unsub = null;
-const plates = uid => collection(db, "users", uid, "plates");
-window.__plateStore?.attachRemote({
-  onAuth: cb => onAuthStateChanged(auth, u => cb(u ? { uid: u.uid, email: u.email || u.displayName || "" } : null)),
-  watch(uid, onList, onStatus) {
-    unsub?.();
-    unsub = onSnapshot(plates(uid), { includeMetadataChanges: true },
-      snap => { onList(snap.docs.map(d => ({ ...d.data(), id: d.id }))); onStatus({ pending: snap.metadata.hasPendingWrites, fromCache: snap.metadata.fromCache }); },
-      err => onStatus({ error: err.code }));
-  },
-  stop() { unsub?.(); unsub = null; },
-  save: (uid, id, body) => setDoc(doc(db, "users", uid, "plates", id), body),
-  remove: (uid, id) => deleteDoc(doc(db, "users", uid, "plates", id)),
-  async signIn() {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: "select_account" });
-    try { await signInWithPopup(auth, provider); }
-    catch (e) {
-      if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment"].includes(e.code)) return signInWithRedirect(auth, provider);
-      if (e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") return;
-      throw e;
-    }
-  },
-  signOut: () => signOut(auth),
-});
-</script>
 
 </body>
 </html>
