@@ -1,0 +1,29 @@
+{
+  "name": "Plate Map Tracker (한국어)",
+  "short_name": "Plate Map",
+  "description": "4–384 well plate의 샘플 위치, 처리 조건, 사용 기록을 관리합니다.",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f6",
+  "theme_color": "#0f6e7a",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

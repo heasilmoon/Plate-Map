@@ -1,0 +1,1180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f6e7a">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Plate Map">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<script>window.PLATE_APP = true; try { var t = localStorage.getItem("plate-tracker-theme"); if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); } catch (e) {}</script>
+<title>Plate Map Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: lab-notebook app — experiment index on the left, the plate as the workbench in the centre, region editor on the right. */
+:root{
+  --bg:#f3f5f6; --surface:#ffffff; --sunk:#e8ecee; --line:#d3d9dc; --line-strong:#9aa6ac;
+  --fg:#1b2428; --muted:#5f6d73; --accent:#0f6e7a; --accent-ink:#ffffff; --accent-soft:#dcefF1;
+  --plate:#fbfcfc; --plate-edge:#2d3a3f; --well-empty:#ffffff; --well-ring:#3b484d;
+  --sel:#f2a900; --danger:#b3261e; --danger-soft:#fbe9e7;
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121719; --surface:#1a2124; --sunk:#232c30; --line:#2f3a3f; --line-strong:#56656b;
+  --fg:#e3e9eb; --muted:#93a2a8; --accent:#4fb6c2; --accent-ink:#06282c; --accent-soft:#1d3a3e;
+  --plate:#1f272a; --plate-edge:#8a989e; --well-empty:#141a1c; --well-ring:#7d8b91;
+  --sel:#ffc233; --danger:#f2867c; --danger-soft:#3a1f1d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121719; --surface:#1a2124; --sunk:#232c30; --line:#2f3a3f; --line-strong:#56656b;
+  --fg:#e3e9eb; --muted:#93a2a8; --accent:#4fb6c2; --accent-ink:#06282c; --accent-soft:#1d3a3e;
+  --plate:#1f272a; --plate-edge:#8a989e; --well-empty:#141a1c; --well-ring:#7d8b91;
+  --sel:#ffc233; --danger:#f2867c; --danger-soft:#3a1f1d; color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--sans);font-size:14px;line-height:1.5;padding-inline:16px;padding-block:0 32px}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3{margin:0;text-wrap:balance}
+
+.topbar{display:flex;align-items:center;gap:12px;padding-block:14px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
+.brand span{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.acct{font-family:var(--mono);font-size:11.5px;color:var(--fg);max-width:22ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:720px){.acct{display:none}}
+.store{flex-wrap:wrap;justify-content:flex-end;margin-left:auto;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--line-strong)}
+.dot.on{background:#2e9d5b}
+
+.app{display:grid;grid-template-columns:240px minmax(0,1fr) 320px;gap:16px;align-items:start}
+@media (max-width:1100px){.app{grid-template-columns:220px minmax(0,1fr)}.side-r{grid-column:1/-1}}
+@media (max-width:720px){.app{grid-template-columns:minmax(0,1fr)}}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.panel-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.panel-h h2{font-size:13px;font-weight:600}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.panel-b{padding:14px;display:flex;flex-direction:column;gap:12px}
+
+.btn{border:1px solid var(--line-strong);background:var(--surface);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.btn.danger:hover{background:var(--danger-soft)}
+.btn.sm{padding:3px 9px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* experiment list */
+.search{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 10px}
+.exp-list{list-style:none;margin:0;padding:0 6px 8px;display:flex;flex-direction:column;gap:2px;max-height:60vh;overflow:auto}
+.exp{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;padding:8px;border-radius:6px;cursor:pointer;border:1px solid transparent;text-align:left;background:none;width:100%}
+.exp:hover{background:var(--sunk)}
+.exp.active{background:var(--accent-soft);border-color:var(--accent)}
+.exp .badge{grid-row:span 2;align-self:center;font-family:var(--mono);font-size:11px;font-weight:600;width:38px;text-align:center;padding:4px 0;border-radius:4px;background:var(--sunk);color:var(--muted)}
+.exp.active .badge{background:var(--accent);color:var(--accent-ink)}
+.exp .t{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.exp .m{font-size:11.5px;color:var(--muted)}
+.ex-tag{font-family:var(--mono);font-size:10px;padding:0 5px;border:1px solid var(--line-strong);border-radius:3px;color:var(--muted);margin-left:4px;vertical-align:1px}
+
+/* forms */
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:500}
+.inp{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 10px;width:100%;color:var(--fg)}
+textarea.inp{resize:vertical;min-height:64px}
+.types{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.type{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:8px 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}
+.type b{font-family:var(--mono);font-size:16px}
+.type small{font-size:10.5px;color:var(--muted);font-family:var(--mono)}
+.type[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+
+/* main workbench */
+.bench{display:flex;flex-direction:column;gap:12px;min-width:0}
+.exp-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start;padding:14px 16px}
+.exp-head h2{font-size:20px;font-weight:700;letter-spacing:-.01em}
+.meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:4px}
+.meta b{font-family:var(--mono);font-weight:500;color:var(--fg)}
+.desc{margin-top:6px;font-size:13px;max-width:65ch;color:var(--fg);white-space:pre-wrap}
+
+.plate-wrap{overflow-x:auto;padding:16px;display:flex;justify-content:center}
+.plate{position:relative;background:var(--plate);border:2px solid var(--plate-edge);border-radius:14px;padding:12px 16px 14px 10px;flex:none;
+  box-shadow:inset 0 0 0 5px var(--plate), inset 0 0 0 6px var(--line)}
+.grid{display:grid;gap:var(--gap);user-select:none;-webkit-user-select:none;touch-action:none}
+.hd{font-family:var(--mono);font-size:var(--hdfs);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:4px;background:none;border:0;padding:0}
+.hd:hover{color:var(--accent);background:var(--sunk)}
+.corner{font-size:10px}
+.well{width:var(--cell);height:var(--cell);border-radius:50%;border:var(--ring) solid var(--well-ring);background:var(--well-empty);
+  display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:var(--wfs);font-weight:600;cursor:crosshair;position:relative;padding:0;color:var(--muted)}
+.grid.sq .well{border-radius:3px}
+.well.sel::after{content:"";position:absolute;inset:calc(var(--ring) * -1 - 3px);border-radius:inherit;border:2.5px solid var(--sel);pointer-events:none}
+.well.dim{opacity:.28}
+.hover-line{min-height:22px;font-size:12.5px;color:var(--muted);padding:0 16px 14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.hover-line .wid{font-family:var(--mono);font-weight:600;color:var(--fg)}
+.sw{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;border:1px solid rgba(0,0,0,.2)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 16px;border-top:1px solid var(--line)}
+.toolbar .hint{font-size:12px;color:var(--muted);margin-right:auto}
+.selcount{font-family:var(--mono);font-size:12px;background:var(--sunk);padding:2px 8px;border-radius:4px}
+
+/* region editor */
+.swatches{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.swatch{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
+.swatch[aria-pressed="true"]{border-color:var(--fg);transform:scale(1.08)}
+.custom-color{width:30px;height:28px;border:1px solid var(--line);border-radius:6px;padding:1px;background:var(--bg);cursor:pointer}
+.wells-sum{font-family:var(--mono);font-size:12px;background:var(--bg);border:1px dashed var(--line-strong);border-radius:6px;padding:6px 8px;word-break:break-word;color:var(--fg)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.editing-tag{font-size:11px;font-weight:600;color:var(--accent)}
+
+.groups{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.group{display:grid;grid-template-columns:14px 1fr auto;gap:2px 10px;padding:10px 14px;border-top:1px solid var(--line);cursor:pointer;background:none;text-align:left;width:100%;border-left:0;border-right:0;border-bottom:0}
+.group:hover{background:var(--sunk)}
+.group.active{background:var(--accent-soft)}
+.group .sw{width:14px;height:14px;margin-top:3px}
+.group .gn{font-weight:600;font-size:13px;min-width:0;overflow-wrap:anywhere}
+.group .gc{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right}
+.group .gd{grid-column:2/4;font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:1px;min-width:0}
+.group .gd span{overflow-wrap:anywhere}
+.group .gd .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;margin-right:6px;color:var(--line-strong)}
+
+.title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.daychip{font-family:var(--mono);font-weight:600;font-size:13px;background:var(--accent);color:var(--accent-ink);padding:3px 11px;border-radius:999px;white-space:nowrap}
+.dayref{font-family:var(--mono);font-weight:600;color:var(--accent)}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line-strong);border-radius:6px;overflow:hidden}
+.seg button{border:0;background:var(--bg);padding:7px 6px;cursor:pointer;font-size:12.5px;font-weight:500;color:var(--fg)}
+.seg button+button{border-left:1px solid var(--line-strong)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.well.used::before{opacity:.5}
+.well.used::before,.xmark::before{content:"";position:absolute;inset:18%;pointer-events:none;
+  background:linear-gradient(45deg,transparent calc(50% - .75px),currentColor calc(50% - .75px),currentColor calc(50% + .75px),transparent calc(50% + .75px)),
+             linear-gradient(-45deg,transparent calc(50% - .75px),currentColor calc(50% - .75px),currentColor calc(50% + .75px),transparent calc(50% + .75px))}
+.well.used:not([style*="background"]){color:var(--muted)}
+.well.used span{opacity:.35}
+.xmark{display:inline-block;position:relative;width:13px;height:13px;border:1.2px solid var(--muted);border-radius:50%;color:var(--muted);vertical-align:-2px;flex:none}
+.group .xmark{margin-top:3px}
+.usedtag{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--fg)}
+.type:disabled{opacity:.35;cursor:not-allowed}
+.zoom{display:inline-flex;border:1px solid var(--line-strong);border-radius:6px;overflow:hidden}
+.zoom button{border:0;background:var(--surface);width:30px;height:28px;cursor:pointer;font-family:var(--mono);font-size:15px;color:var(--fg)}
+.zoom button+button{border-left:1px solid var(--line-strong)}
+.zoom button:disabled{opacity:.35;cursor:not-allowed}
+.btn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.grid.pan{touch-action:pan-x pan-y}
+.grid.pan .well{cursor:pointer}
+.mobile-only{display:none}
+@media (max-width:720px){
+  .mobile-only{display:inline-flex}
+  .exp-list{max-height:180px}
+  .toolbar .hint{flex-basis:100%;margin-right:0}
+  .plate-wrap{justify-content:flex-start;padding:12px 8px}
+}
+.export{margin:0 16px 12px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--bg);padding:14px;display:flex;flex-direction:column;gap:12px}
+.export-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.export-h h3{font-size:14px}
+.checks{display:flex;flex-wrap:wrap;gap:8px 18px}
+.checks label{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer}
+.checks input{width:16px;height:16px;accent-color:var(--accent);margin:0}
+.preview{overflow:auto;max-height:340px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.preview table{border-collapse:collapse;font-size:11.5px;white-space:nowrap}
+.preview th,.preview td{border:1px solid var(--line);padding:3px 7px;text-align:left}
+.preview th{background:var(--sunk);font-family:var(--mono);font-weight:600;color:var(--muted);position:sticky;top:0}
+.preview .gt td{background:var(--accent-soft);font-weight:700;color:var(--fg);border-color:var(--line)}
+.preview td.rh{font-family:var(--mono);font-weight:600;color:var(--muted);background:var(--sunk)}
+.chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--fg);cursor:pointer}
+.chk input{width:16px;height:16px;margin:0;accent-color:var(--accent)}
+.glabel{display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2;min-width:0;min-height:0;padding:1px;overflow:hidden}
+.glabel span{background:color-mix(in srgb, var(--surface) 84%, transparent);color:var(--fg);font-size:calc(min(var(--lfs), calc(var(--cell) * .34)) * var(--lscale, 1.25));font-weight:600;line-height:1.2;
+  padding:0 4px;border-radius:4px;box-shadow:0 0 0 1px var(--line);max-width:100%;text-align:center;word-break:keep-all;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.plate-wrap{gap:14px;align-items:flex-start;container-type:inline-size;--lgw:170px}
+.plate-wrap.lg-closed{--lgw:86px}
+.legend{flex:none;width:156px;display:flex;flex-direction:column;gap:6px;font-size:12px}
+.legend.closed{width:auto}
+.lg-toggle{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);text-align:left}
+.lg-toggle:hover{color:var(--fg);background:var(--sunk)}
+.lg-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px;max-height:420px;overflow:auto}
+.lg-item{display:grid;grid-template-columns:12px 1fr auto;gap:7px;align-items:center;width:100%;padding:4px 6px;border:0;background:none;border-radius:5px;cursor:pointer;text-align:left;font-size:12px}
+.lg-item:hover{background:var(--sunk)} .lg-item.active{background:var(--accent-soft)} .lg-item.static{cursor:default}
+.lg-item .sw{width:12px;height:12px}
+.lg-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.lg-c{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.lg-empty{margin:0;color:var(--muted);font-size:12px;padding:0 4px}
+@media (max-width:720px){
+  .plate-wrap,.plate-wrap.lg-closed{flex-direction:column;--lgw:0px}
+  .legend,.legend.closed{width:100%}
+  .lg-list{flex-direction:row;flex-wrap:wrap;gap:2px 6px;max-height:none}
+  .lg-list li{min-width:0}
+  .lg-item{grid-template-columns:12px auto auto;width:auto}
+}
+.sfilter{display:flex;flex-wrap:wrap;gap:4px;padding:0 12px 8px}
+.sf{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:2px 9px;font-size:11.5px;cursor:pointer;color:var(--muted)}
+.sf b{font-family:var(--mono);font-weight:600;margin-left:2px}
+.sf[aria-pressed="true"]{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+.proj-h button{display:flex;align-items:center;gap:6px;width:100%;border:0;background:none;padding:8px 6px 3px;cursor:pointer;text-align:left;color:var(--muted);font-size:11.5px;font-weight:600;letter-spacing:.02em}
+.proj-h .pn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}
+.proj-h .pc{font-family:var(--mono);font-size:10.5px}
+.proj-h .caret{width:10px;font-size:10px}
+.st{display:inline-block;font-size:10.5px;font-weight:600;padding:0 6px;border-radius:999px;border:1px solid currentColor;line-height:1.5}
+.st.plan{color:var(--muted)} .st.active{color:var(--accent)} .st.done{color:var(--line-strong)}
+.exp .m{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px}
+.nw{white-space:nowrap}
+.exp.is-done .t{color:var(--muted)} .exp.is-done .badge{opacity:.6}
+.proj{color:var(--accent);font-weight:600}
+.daychip.done{background:var(--sunk);color:var(--muted)}
+.stepper{list-style:none;margin:8px 0 0;padding:0;display:flex;gap:0;font-size:11.5px;font-weight:600}
+.stepper li{padding:2px 12px 2px 10px;color:var(--muted);background:var(--sunk);clip-path:polygon(0 0,calc(100% - 7px) 0,100% 50%,calc(100% - 7px) 100%,0 100%,7px 50%);margin-right:-3px}
+.stepper li:first-child{clip-path:polygon(0 0,calc(100% - 7px) 0,100% 50%,calc(100% - 7px) 100%,0 100%);border-radius:4px 0 0 4px}
+.stepper li.past{background:var(--accent-soft);color:var(--accent)}
+.stepper li.on{background:var(--accent);color:var(--accent-ink)}
+.seg3{grid-template-columns:repeat(3,1fr)}
+.confirm.ok{background:var(--accent-soft);border-color:var(--accent)}
+.confirm .inline{display:inline-flex;align-items:center;gap:6px}
+.confirm .inline .inp{width:auto;padding:3px 6px}
+.help-btn{font-weight:600}
+.help{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.help-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
+.help-bar h2{font-size:15px}
+.help-n{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.help-tabs{display:flex;gap:4px;flex-wrap:wrap;flex:1;min-width:0}
+.help-tabs button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:2px 10px;font-size:12px;cursor:pointer;color:var(--muted)}
+.help-tabs button[aria-current="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.help-body{flex:1;overflow:auto;padding:16px;touch-action:pan-x pan-y}
+.help-body img{display:block;margin:0 auto;width:100%;max-width:860px;height:auto;border-radius:10px;border:1px solid var(--line);background:#fff;cursor:zoom-in}
+.help-body img.zoomed{width:1080px;max-width:none;cursor:zoom-out}
+.help-hint{font-size:11.5px;color:var(--muted)}
+.help-nav{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--line);background:var(--surface)}
+@media (max-width:720px){.help-tabs{order:3;flex-basis:100%}.help-body{padding:8px}}
+.dup .f{max-width:420px}
+.checks input:disabled + *{opacity:.5}
+.lsize{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.lsize select{font-size:12px;padding:3px 6px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--fg)}
+.theme-btn{min-width:74px}
+.empty{padding:48px 24px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px}
+.empty h2{font-size:18px}
+.empty p{margin:0;color:var(--muted);max-width:44ch}
+.mini-plate{display:grid;grid-template-columns:repeat(12,10px);gap:3px;padding:10px 12px;border:1.5px solid var(--line-strong);border-radius:8px}
+.mini-plate i{width:10px;height:10px;border-radius:50%;border:1px solid var(--line-strong)}
+
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--danger-soft);border:1px solid var(--danger);border-radius:6px;padding:8px 10px;font-size:12.5px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 16px;border-radius:6px;font-size:13px;z-index:20}
+.muted{color:var(--muted);font-size:12.5px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}[hidden]{display:none!important}img{max-width:100%}
+.langlink{font-size:12px;color:var(--accent);text-decoration:none;font-weight:600}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><h1>Plate Map Tracker</h1><span>well plate · sample log</span><a class="langlink" href="../ko/" lang="ko">한국어</a></div>
+  <button class="btn sm help-btn" id="helpBtn" data-act="help" hidden>? Help</button>
+  <button class="btn sm theme-btn" id="themeBtn" data-act="theme" hidden></button>
+  <div class="store"><i class="dot" id="storeDot"></i><span id="storeTxt">Connecting to storage…</span><span class="acct" id="acct" hidden></span><button class="btn sm" id="authBtn" data-act="auth" hidden>Sign in with Google</button><button class="btn sm" id="exportBtn" title="Save all experiments as a JSON file">Export backup</button><label class="btn sm" style="cursor:pointer" title="Load a backup JSON file">Import backup<input type="file" id="importInp" accept=".json,application/json" hidden></label></div>
+</header>
+
+<div class="app">
+  <!-- left: experiments -->
+  <aside class="panel side-l">
+    <div class="panel-h"><h2>Experiments</h2><button class="btn primary sm" id="newBtn" data-act="new">+ New</button></div>
+    <div style="padding:10px 12px 8px"><input class="search" id="search" placeholder="Search experiments" aria-label="Search experiments"></div>
+    <div class="sfilter" id="statusFilter" role="group" aria-label="Status filter"></div>
+    <ul class="exp-list" id="expList"></ul>
+  </aside>
+
+  <!-- centre -->
+  <main class="bench" id="bench"></main>
+
+  <!-- right: region editor -->
+  <aside class="side-r" id="sideR" style="display:flex;flex-direction:column;gap:12px"></aside>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>window.PLATE_HELP = {"items": [{"title": "Register", "src": "guide/guide-01-register.webp"}, {"title": "Groups", "src": "guide/guide-02-groups.webp"}, {"title": "Used wells", "src": "guide/guide-03-used-wells.webp"}, {"title": "Export", "src": "guide/guide-04-export.webp"}, {"title": "Projects · status", "src": "guide/guide-05-projects-status.webp"}]};</script>
+<script>
+(() => {
+const TYPES = {
+  4:{r:2,c:2,cell:92,gap:14}, 6:{r:2,c:3,cell:88,gap:14}, 8:{r:2,c:4,cell:74,gap:12}, 12:{r:3,c:4,cell:70,gap:12},
+  24:{r:4,c:6,cell:54,gap:9}, 48:{r:6,c:8,cell:44,gap:7}, 96:{r:8,c:12,cell:38,gap:5}, 384:{r:16,c:24,cell:21,gap:3}
+};
+const ROWS = "ABCDEFGHIJKLMNOP";
+const PALETTE = ["#d9907e","#e2b475","#dccf8e","#a3c495","#86bdb2","#93b4d8","#b0a4d0","#d7a8c4","#bba595","#aab4ba"];
+/* earlier, brighter palette -> soft equivalents (applied when plates load) */
+const SOFTEN = {"#e4572e":"#d9907e","#f3a712":"#e2b475","#e9d758":"#dccf8e","#76b041":"#a3c495","#2a9d8f":"#86bdb2",
+  "#3a86ff":"#93b4d8","#6a4c93":"#b0a4d0","#d16ba5":"#d7a8c4","#8d6e63":"#bba595","#90a4ae":"#aab4ba"};
+const STATUS = { plan:"Planned", active:"Running", done:"Done" };
+const LABEL_SIZES = [{k:1, n:"Small"}, {k:1.25, n:"Medium"}, {k:1.6, n:"Large"}, {k:2, n:"Extra large"}];
+const defaultStatus = e => e.seedDate && e.seedDate <= today() ? "active" : "plan";
+/* Sample plates shown on a device's very first visit (local storage only). Dates are relative to today. */
+function shiftDay(n){ const d = new Date(); d.setDate(d.getDate() + n); return new Date(d - d.getTimezoneOffset()*6e4).toISOString().slice(0,10); }
+function sampleExperiments(){
+  const W = (rows, cols) => [...rows].flatMap(r => cols.map(c => r + c));
+  const seed = shiftDay(-3), treat = shiftDay(-1), proj = "(Sample) Drug A screening";
+  return [
+    { id:"sample-hela", example:true, name:"HeLa drug treatment (MTT)", project:proj, status:"active", wells:96,
+      seedDate:seed, date:shiftDay(0), desc:"Sample data. Have a look, then remove it with 'Delete experiment'.\nHeLa, passage 12 · 5×10³ cells/well",
+      groups:[
+        { id:"s1", name:"Blank", color:"#aab4ba", wells:W("AB",[1,2,3]), date:treat, condition:"No cells", memo:"", showLabel:true },
+        { id:"s2", name:"Control (DMSO 0.1%)", color:"#93b4d8", wells:W("AB",[4,5,6]), date:treat, condition:"DMSO 0.1%, 24 h", memo:"", showLabel:true },
+        { id:"s3", name:"Drug A 1 µM", color:"#a3c495", wells:W("CD",[1,2,3]), date:treat, condition:"1 µM, 24 h, 37 °C", memo:"", showLabel:true },
+        { id:"s4", name:"Drug A 10 µM", color:"#e2b475", wells:W("CD",[4,5,6]), date:treat, condition:"10 µM, 24 h, 37 °C", memo:"", showLabel:true },
+        { id:"s5", name:"Drug A 50 µM", color:"#d9907e", wells:W("EF",[1,2,3]), date:treat, condition:"50 µM, 24 h, 37 °C", memo:"Diluted from 50 mM DMSO stock", showLabel:true },
+      ],
+      uses:[{ id:"su1", date:shiftDay(0), purpose:"Western blot", memo:"Lysate harvest", wells:["C3","D3"] }] },
+    { id:"sample-a549", example:true, name:"A549 round 2", project:proj, status:"plan", wells:24,
+      seedDate:"", date:shiftDay(7), desc:"Sample data.", groups:[], uses:[] },
+  ];
+}
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const today = () => { const d=new Date(); return new Date(d - d.getTimezoneOffset()*6e4).toISOString().slice(0,10); };
+const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+const wellId = (r,c) => ROWS[r] + (c+1);
+const parseWell = id => ({ r: ROWS.indexOf(id[0]), c: parseInt(id.slice(1),10)-1 });
+function inkFor(hex){ const h=hex.replace("#",""); const n=parseInt(h.length===3?h.split("").map(x=>x+x).join(""):h,16);
+  const r=(n>>16)&255,g=(n>>8)&255,b=n&255; return (0.299*r+0.587*g+0.114*b)>150 ? "#1b2428" : "#ffffff"; }
+function summarize(wells){
+  if(!wells.length) return "—";
+  const byRow = {}; wells.map(parseWell).forEach(({r,c}) => (byRow[r] ||= []).push(c));
+  return Object.keys(byRow).map(Number).sort((a,b)=>a-b).map(r => {
+    const cs = byRow[r].sort((a,b)=>a-b), out=[]; let s=cs[0], p=cs[0];
+    for(let i=1;i<=cs.length;i++){ if(cs[i]===p+1){p=cs[i];continue;} out.push(s===p?wellId(r,s):`${wellId(r,s)}–${wellId(r,p)}`); s=p=cs[i]; }
+    return out.join(", ");
+  }).join(", ");
+}
+let toastT; function toast(m){ const t=$("#toast"); t.textContent=m; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,2200); }
+
+/* ---------- storage: shared db when available, browser storage otherwise ---------- */
+const LS_KEY = "plate-tracker-v1";
+const store = {
+  db:null, mode:"local", chains:{}, remote:null, user:null, lastSync:null,
+  async init(onChange){
+    this.onChange = onChange;
+    let db = null;
+    try { db = window.claude?.use ? await Promise.race([window.claude.use("db"), new Promise(r=>setTimeout(()=>r(null),10500))]) : null; } catch(e){ db=null; }
+    if(db){
+      this.db=db; this.mode="db"; setStore(true,"Saved to the cloud");
+      db.collection("plates").onSnapshot(snap => onChange(snap.docs.map(d => ({...JSON.parse(JSON.stringify(d.data())), id:d.id}))),
+        e => { setStore(false,"Lost connection to storage. Reload the page"); });
+    } else {
+      setStore(false,"Saved on this device · back up regularly");
+      try {
+        if(!localStorage.getItem(LS_KEY + "-seeded")){
+          if(localStorage.getItem(LS_KEY) === null) this.writeLocal(sampleExperiments());
+          localStorage.setItem(LS_KEY + "-seeded", "1");
+        }
+      } catch(_){}
+      onChange(this.readLocal());
+    }
+  },
+  readLocal(){ try { return JSON.parse(localStorage.getItem(LS_KEY)||"[]"); } catch(e){ return []; } },
+  writeLocal(list){ try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch(e){} },
+  save(exp){
+    const body = JSON.parse(JSON.stringify(exp)); delete body.id; body.updatedAt = new Date().toISOString();
+    if(this.mode==="db"){
+      const ref = this.db.doc("plates/"+exp.id);
+      const run = () => ref.set(body).catch(e => { toast(e?.code==="quota_exceeded" ? "Storage is full. Delete old experiments to free space" : "Could not save. Try again"); });
+      this.chains[exp.id] = (this.chains[exp.id]||Promise.resolve()).then(run);
+      return this.chains[exp.id];
+    }
+    if(this.mode==="remote"){
+      this.remote.save(this.user.uid, exp.id, body).catch(e => toast(e?.code==="permission-denied" ? "No permission to save. Sign in again" : "Could not save. Try again"));
+      return Promise.resolve();
+    }
+    const list = this.readLocal().filter(x=>x.id!==exp.id); list.push({...body,id:exp.id}); this.writeLocal(list);
+    state.exps = list; return Promise.resolve();
+  },
+  remove(id){
+    if(this.mode==="db") return this.db.doc("plates/"+id).delete().catch(()=>toast("Could not delete"));
+    if(this.mode==="remote"){ this.remote.remove(this.user.uid, id).catch(()=>toast("Could not delete")); return Promise.resolve(); }
+    const list = this.readLocal().filter(x=>x.id!==id); this.writeLocal(list); state.exps=list; return Promise.resolve();
+  }
+};
+/* Optional cloud sync (Google login). The standalone web app supplies `remote`; Claude's page never does. */
+store.attachRemote = function(remote){
+  this.remote = remote; $("#authBtn").hidden = false; renderAuth();
+  remote.onAuth(user => {
+    this.user = user; renderAuth();
+    if(user){
+      this.mode = "remote"; setStore(false, "Connecting to cloud…");
+      let first = true;
+      remote.watch(user.uid, list => {
+        if(first){ first = false; this.migrate(list); }
+        this.onChange(list.map(x => JSON.parse(JSON.stringify(x))));
+      }, st => { this.lastSync = st; showSync(); });
+    } else {
+      remote.stop(); this.mode = "local"; this.lastSync = null;
+      setStore(false, "Saved on this device · back up regularly");
+      this.onChange(this.readLocal());
+    }
+  });
+};
+store.migrate = function(cloud){
+  const local = this.readLocal().filter(x => !x.example); if(!local.length){ this.writeLocal([]); return; }
+  try { localStorage.setItem(LS_KEY + "-before-login", JSON.stringify(local)); } catch(_){}
+  const have = new Set(cloud.map(x => x.id)); let n = 0;
+  local.forEach(x => { if(!have.has(x.id)){ const b = {...x}; delete b.id; this.remote.save(this.user.uid, x.id, b).catch(()=>{}); n++; } });
+  this.writeLocal([]);
+  if(n) toast(`Moved ${n} experiment(s) from this device to your account`);
+};
+function showSync(){
+  const st = store.lastSync; if(store.mode !== "remote" || !st) return;
+  if(st.error) return setStore(false, "Sync error · reload the page");
+  if(!navigator.onLine) return setStore(false, st.pending ? "Offline · uploads when back online" : "Offline · showing saved data");
+  setStore(true, st.pending ? "Uploading…" : "Synced");
+}
+window.addEventListener("online", showSync); window.addEventListener("offline", showSync);
+function renderAuth(){
+  const btn = $("#authBtn"), acct = $("#acct"), u = store.user;
+  btn.textContent = u ? "Sign out" : "Sign in with Google";
+  btn.classList.toggle("primary", !u);
+  acct.hidden = !u; acct.textContent = u?.email || ""; acct.title = u?.email || "";
+}
+async function doAuth(){
+  if(!store.remote) return;
+  if(store.user){ await store.remote.signOut(); toast("Signed out. Your data stays in your account"); return; }
+  try { await store.remote.signIn(); }
+  catch(e){
+    const c = e?.code || "";
+    toast(c === "auth/unauthorized-domain" ? "Add this address to Firebase authorized domains"
+        : c === "auth/network-request-failed" ? "Check your internet connection"
+        : "Could not sign in (" + (c || "unknown") + ")");
+  }
+}
+window.__plateStore = store;
+function setStore(on,txt){ $("#storeDot").classList.toggle("on",on); $("#storeTxt").textContent=txt; }
+
+/* ---------- state ---------- */
+const state = {
+  exps:[], currentId:null, view:"empty", // empty | new | edit | plate
+  sel:new Set(), kind:"group", zoom:1, pan:false, helpIdx:null, dupOpen:false, exportOpen:false, legendOpen:true, statusFilter:"all", projectFilter:"", collapsed:new Set(), confirmDone:false, doneDraft:"", exportOpts:{name:true, cond:false, memo:false, used:true}, activeGroup:null, activeUse:null, hover:null, q:"", confirmDel:null,
+  draft:{ name:"", color:PALETTE[0], date:"", condition:"", memo:"" },
+  useDraft:{ date:today(), purpose:"", memo:"" },
+  newForm:{ name:"", type:96, date:"", seedDate:"", desc:"" }
+};
+const current = () => state.exps.find(e => e.id===state.currentId);
+const groupOf = (exp, w) => exp.groups.find(g => g.wells.includes(w));
+const useOf = (exp, w) => (exp.uses||[]).find(u => u.wells.includes(w));
+const sortWells = ws => [...ws].sort((a,b)=>{const A=parseWell(a),B=parseWell(b);return A.r-B.r||A.c-B.c;});
+
+/* Day counting: seeding date = Day 0 */
+function dayNum(seed, date){
+  if(!seed || !date) return null;
+  const p = s => { const [y,m,d] = s.split("-").map(Number); return Date.UTC(y,m-1,d); };
+  return Math.round((p(date) - p(seed)) / 864e5);
+}
+const dayLabel = n => n===null ? "" : n >= 0 ? `Day ${n}` : `D${n}`;
+const dayOf = (exp, date) => dayLabel(dayNum(exp.seedDate, date));
+const withDay = (exp, date) => date ? `${date}${exp.seedDate ? ` (${dayOf(exp,date)})` : ""}` : "";
+
+store.init(list => {
+  list.forEach(e => { e.groups ||= []; e.uses ||= []; e.groups.forEach(g => { if(SOFTEN[g.color]) g.color = SOFTEN[g.color]; }); e.status ||= defaultStatus(e); e.project ||= ""; });
+  state.exps = list;
+  if(state.currentId && !current()){ state.currentId=null; state.view = list.length ? "plate" : "empty"; }
+  if(!state.currentId && state.view!=="new"){
+    const first = [...list].sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""))[0];
+    if(first){ state.currentId=first.id; state.view="plate"; } else state.view="empty";
+  }
+  if(state.activeGroup && !current()?.groups.some(g=>g.id===state.activeGroup)) state.activeGroup=null;
+  if(state.activeUse && !current()?.uses.some(u=>u.id===state.activeUse)) state.activeUse=null;
+  renderAll();
+});
+
+/* ---------- render ---------- */
+function renderAll(){ renderList(); renderBench(); renderSide(); }
+
+function projectNames(){ return [...new Set(state.exps.map(e=>e.project).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
+function renderList(){
+  const q = state.q.trim().toLowerCase();
+  const counts = { all: state.exps.length, plan:0, active:0, done:0 };
+  state.exps.forEach(e => counts[e.status||"plan"]++);
+  $("#statusFilter").innerHTML = [["all","All"], ...Object.entries(STATUS)].map(([k,l]) =>
+    `<button class="sf ${k}" data-act="status" data-status="${k}" aria-pressed="${state.statusFilter===k}">${l} <b>${counts[k]}</b></button>`).join("");
+  const items = [...state.exps]
+    .filter(e => !q || (e.name||"").toLowerCase().includes(q) || (e.project||"").toLowerCase().includes(q))
+    .filter(e => state.statusFilter==="all" || e.status===state.statusFilter)
+    .sort((a,b)=>(a.status==="done")-(b.status==="done") || (b.date||"").localeCompare(a.date||"") || (b.updatedAt||"").localeCompare(a.updatedAt||""));
+  if(!items.length){ $("#expList").innerHTML = `<li class="muted" style="padding:8px">${q||state.statusFilter!=="all"?"No experiments match":"No experiments yet"}</li>`; return; }
+  const byProj = new Map();
+  items.forEach(e => { const k = e.project || ""; if(!byProj.has(k)) byProj.set(k, []); byProj.get(k).push(e); });
+  const keys = [...byProj.keys()].sort((a,b)=> (a==="")-(b==="") || a.localeCompare(b));
+  const showHeads = keys.length > 1 || keys[0] !== "";
+  $("#expList").innerHTML = keys.map(k => {
+    const list = byProj.get(k), closed = state.collapsed.has(k);
+    const head = showHeads ? `<li class="proj-h"><button data-act="proj" data-proj="${esc(k)}" aria-expanded="${!closed}">
+        <span class="caret">${closed?"▸":"▾"}</span><span class="pn">${k?esc(k):"No project"}</span><span class="pc">${list.length}</span></button></li>` : "";
+    return head + (closed ? "" : list.map(e => `
+    <li><button class="exp ${e.status==="done"?"is-done":""} ${e.id===state.currentId && state.view==="plate"?"active":""}" data-exp="${esc(e.id)}">
+      <span class="badge">${e.wells}</span>
+      <span class="t">${esc(e.name||"Untitled")}${e.example?'<span class="ex-tag">sample</span>':''}</span>
+      <span class="m"><span class="st ${e.status}">${STATUS[e.status]||""}</span>${e.status!=="done"&&e.seedDate?`<b class="dayref nw">${dayOf(e,today())}</b>`:""}${e.date?`<span class="nw">${esc(e.date)}</span>`:""}</span>
+    </button></li>`).join(""));
+  }).join("");
+}
+
+function renderBench(){
+  const b = $("#bench");
+  if(state.view==="new" || state.view==="edit"){ b.innerHTML = newFormHTML(); return; }
+  const exp = current();
+  if(!exp){
+    b.innerHTML = `<section class="panel empty">
+      <div class="mini-plate" aria-hidden="true">${"<i></i>".repeat(36)}</div>
+      <h2>Register your first experiment</h2>
+      <p>Name the experiment and pick a plate format (4–384 wells) to get a plate map. Drag across wells to make a group, then record its color and treatment.</p>
+      <button class="btn primary" data-act="new">+ New experiment</button></section>`;
+    return;
+  }
+  const t = TYPES[exp.wells];
+  const cellCss = `calc(${state.zoom} * min(${t.cell}px, calc((100cqw - var(--lgw) - ${t.c > 12 ? 56 : 62}px) / ${t.c} - ${t.gap}px)))`;
+  const showId = false;
+  const activeG = state.kind==="group" && exp.groups.find(g=>g.id===state.activeGroup);
+  const activeU = state.kind==="use" && exp.uses.find(u=>u.id===state.activeUse);
+  let cells = `<button class="hd corner" data-all="1" title="Select all" style="grid-area:1/1">ALL</button>`;
+  for(let c=0;c<t.c;c++) cells += `<button class="hd" data-col="${c}" title="Select column ${c+1}" style="grid-area:1/${c+2}">${c+1}</button>`;
+  for(let r=0;r<t.r;r++){
+    cells += `<button class="hd" data-row="${r}" title="Select row ${ROWS[r]}" style="grid-area:${r+2}/1">${ROWS[r]}</button>`;
+    for(let c=0;c<t.c;c++){
+      const w = wellId(r,c), g = groupOf(exp,w), u = useOf(exp,w);
+      const style = `grid-area:${r+2}/${c+2};` + (g ? `background:${esc(g.color)};border-color:${esc(g.color)};color:${inkFor(g.color)}` : "");
+      const dim = (activeG && (!g || g.id!==activeG.id) && !state.sel.has(w)) || (activeU && (!u || u.id!==activeU.id) && !state.sel.has(w));
+      cells += `<div class="well ${state.sel.has(w)?"sel":""} ${dim?"dim":""} ${u?"used":""}" data-w="${w}" style="${style}" role="gridcell" aria-label="${w}${g?" "+esc(g.name):""}${u?" used":""}">${showId?`<span>${w}</span>`:""}</div>`;
+    }
+  }
+  exp.groups.filter(g => g.showLabel && g.wells.length).forEach(g => {
+    const ps = g.wells.map(parseWell);
+    const r0 = Math.min(...ps.map(p=>p.r)), r1 = Math.max(...ps.map(p=>p.r)), c0 = Math.min(...ps.map(p=>p.c)), c1 = Math.max(...ps.map(p=>p.c));
+    cells += `<div class="glabel" aria-hidden="true" style="grid-area:${r0+2}/${c0+2}/${r1+3}/${c1+3}"><span>${esc(g.name)}</span></div>`;
+  });
+  const assigned = new Set(exp.groups.flatMap(g=>g.wells));
+  const usedSet = new Set(exp.uses.flatMap(u=>u.wells));
+  const remaining = [...assigned].filter(w=>!usedSet.has(w)).length;
+  const todayDay = exp.seedDate ? dayNum(exp.seedDate, today()) : null;
+  b.innerHTML = `
+    <section class="panel">
+      <div class="exp-head">
+        <div style="min-width:0">
+          <div class="eyebrow">${exp.project?`<span class="proj">${esc(exp.project)}</span> · `:""}${exp.wells}-well plate${exp.example?" · sample data":""}</div>
+          <div class="title-row"><h2>${esc(exp.name||"Untitled")}</h2>
+            ${exp.status==="done"
+              ? `<span class="daychip done">Done${exp.doneDate?` ${esc(exp.doneDate)}`:""}${exp.seedDate&&exp.doneDate?` · ${dayOf(exp,exp.doneDate)}`:""}</span>`
+              : todayDay!==null?`<span class="daychip" title="Seeding date (${esc(exp.seedDate)}) = Day 0; today is">${todayDay<0?"Before seeding · ":"Today "}${dayLabel(todayDay)}</span>`:""}</div>
+          <ol class="stepper" aria-label="Status">${Object.keys(STATUS).map((k,i)=>`<li class="${k===exp.status?"on":""} ${Object.keys(STATUS).indexOf(exp.status)>i?"past":""}">${STATUS[k]}</li>`).join("")}</ol>
+          <div class="meta">
+            <span>Seeded <b>${esc(exp.seedDate||"—")}</b></span>
+            <span>Experiment <b>${esc(exp.date||"—")}</b>${exp.seedDate&&exp.date?` <b class="dayref">${dayOf(exp,exp.date)}</b>`:""}</span>
+            <span>Assigned <b>${assigned.size}/${exp.wells}</b></span>
+            <span>Used <b>${usedSet.size}</b></span>
+            <span>Remaining <b>${remaining}</b></span>
+          </div>
+          ${exp.desc?`<div class="desc">${esc(exp.desc)}</div>`:""}
+        </div>
+        <div class="row">
+          ${exp.status==="plan"?`<button class="btn sm" data-act="startExp">Start experiment</button>`:""}
+          ${exp.status==="active"?`<button class="btn sm primary" data-act="doneExp">Mark as done</button>`:""}
+          ${exp.status==="done"?`<button class="btn sm" data-act="reopenExp">Reopen</button>`:""}
+          <button class="btn sm" data-act="editExp">Edit details</button>
+          <button class="btn sm" data-act="dupExp" aria-pressed="${state.dupOpen}">Duplicate</button>
+          <button class="btn sm" data-act="exportMap" aria-pressed="${state.exportOpen}">Export plate map</button>
+          <button class="btn sm" data-act="csv">Copy CSV</button>
+          <button class="btn sm danger" data-act="delExp">Delete experiment</button>
+        </div>
+      </div>
+      ${state.confirmDel===exp.id?`<div style="padding:0 16px 12px"><div class="confirm">Delete this experiment and all of its groups? This cannot be undone.
+        <button class="btn sm danger" data-act="delExpYes">Delete</button><button class="btn sm" data-act="delExpNo">Cancel</button></div></div>`:""}
+      ${state.dupOpen?dupPanelHTML(exp):""}
+      ${state.confirmDone?`<div style="padding:0 16px 12px"><div class="confirm ok"><span>Finish culture on this plate and set its status to <b>Done</b>?</span>
+        <label class="inline">Completion date <input type="date" class="inp" id="doneDate" value="${esc(state.doneDraft||today())}"></label>
+        <button class="btn sm primary" data-act="doneYes">Mark done</button><button class="btn sm" data-act="doneNo">Cancel</button></div></div>`:""}
+      ${state.exportOpen?exportPanelHTML(exp):""}
+      <div class="plate-wrap ${state.legendOpen?"":"lg-closed"}">
+        ${legendHTML(exp)}
+        <div class="plate">
+          <div class="grid ${exp.wells===384?"sq":""} ${state.pan?"pan":""}" id="grid" role="grid" aria-label="${exp.wells}-well plate map"
+            style="--cell:${cellCss};--gap:${t.gap}px;--ring:${exp.wells>=384?1:exp.wells>=96?1.5:2}px;--wfs:${exp.wells>=48?9:exp.wells>=24?11:13}px;--hdfs:${exp.wells>=384?9:12}px;--lfs:${exp.wells>=384?9:exp.wells>=96?10.5:12}px;--lscale:${LABEL_SIZES[exp.labelSize ?? 1].k};
+            grid-template-columns:${exp.wells>=384?16:22}px repeat(${t.c}, var(--cell));grid-template-rows:${exp.wells>=384?14:18}px repeat(${t.r}, var(--cell))">${cells}</div>
+        </div>
+      </div>
+      <div class="hover-line" id="hoverLine">${hoverHTML(exp)}</div>
+      <div class="toolbar">
+        <span class="hint">Drag to select a range · Shift/Ctrl+drag to add · Click a row or column header · Tap for well info · <i class="xmark" aria-hidden="true"></i> used</span>
+        ${exp.groups.some(g=>g.showLabel)?`<label class="lsize">Name size
+          <select id="labelSize">${LABEL_SIZES.map((o,i)=>`<option value="${i}" ${(exp.labelSize ?? 1)===i?"selected":""}>${o.n}</option>`).join("")}</select></label>`:""}
+        <span class="zoom" role="group" aria-label="Zoom in"><button data-act="zoomOut" aria-label="Zoom out" ${state.zoom<=1?"disabled":""}>−</button><button data-act="zoomIn" aria-label="Zoom in" ${state.zoom>=3?"disabled":""}>+</button></span>
+        <button class="btn sm" data-act="pan" aria-pressed="${state.pan}" title="When on, swipe to scroll the plate and tap a well to see its info">Move mode</button>
+        <span class="selcount">${state.sel.size} selected</span>
+        <button class="btn sm" data-act="clearSel" ${state.sel.size?"":"disabled"}>Clear selection</button>
+        <button class="btn sm primary mobile-only" data-act="toEditor" ${state.sel.size?"":"disabled"}>Enter details ↓</button>
+      </div>
+    </section>`;
+}
+
+/* ---------- plate map export (grid layout) ---------- */
+const EXPORT_FIELDS = [
+  { key:"name", label:"Group / sample name", get:g=>g?.name },
+  { key:"cond", label:"Condition", get:g=>g?.condition },
+  { key:"memo", label:"Notes", get:g=>g?.memo },
+];
+function exportGrids(exp){
+  const t = TYPES[exp.wells], o = state.exportOpts;
+  return EXPORT_FIELDS.filter(f => o[f.key]).map(f => {
+    const rows = [["", ...Array.from({length:t.c}, (_,c)=>String(c+1))]];
+    for(let r=0;r<t.r;r++){
+      const row=[ROWS[r]];
+      for(let c=0;c<t.c;c++){
+        const w=wellId(r,c), g=groupOf(exp,w);
+        let v = f.get(g) || "";
+        if(o.used && useOf(exp,w)) v = v ? v + " ✕" : "✕";
+        row.push(v);
+      }
+      rows.push(row);
+    }
+    return { title:f.label, rows };
+  });
+}
+function exportTable(exp, sep){
+  const q = sep === "," ? (v => `"${String(v??"").replace(/"/g,'""')}"`) : (v => String(v??"").replace(/[\t\r\n]+/g," "));
+  const lines = [
+    ["Experiment", exp.name||""], ["Project", exp.project||""], ["Status", STATUS[exp.status]||""], ["Plate", `${exp.wells}-well`], ["Seeding date", exp.seedDate||""], ["Experiment date", exp.date||""],
+  ].map(r => r.map(q).join(sep));
+  if(state.exportOpts.used) lines.push(["✕ = used well"].map(q).join(sep));
+  exportGrids(exp).forEach(g => { lines.push(""); lines.push(q(`[${g.title}]`)); g.rows.forEach(r => lines.push(r.map(q).join(sep))); });
+  return lines.join("\r\n");
+}
+function exportPanelHTML(exp){
+  const o = state.exportOpts, grids = exportGrids(exp);
+  const box = (k, label) => `<label><input type="checkbox" id="ex-${k}" ${o[k]?"checked":""}> ${label}</label>`;
+  const preview = grids.length ? `<div class="preview"><table>${grids.map(g =>
+      `<tr class="gt"><td colspan="${g.rows[0].length}">${esc(g.title)}</td></tr>` +
+      `<tr>${g.rows[0].map(h=>`<th>${esc(h)}</th>`).join("")}</tr>` +
+      g.rows.slice(1).map(r => `<tr>${r.map((v,i)=>`<td class="${i?"":"rh"}">${esc(v)}</td>`).join("")}</tr>`).join("")
+    ).join("")}</table></div>`
+    : `<p class="muted" style="margin:0">Select at least one item to export.</p>`;
+  return `<div class="export">
+    <div class="export-h"><h3>Export plate map</h3><button class="btn sm" data-act="exportClose">Close</button></div>
+    <div class="checks" role="group" aria-label="Include">
+      ${box("name","Group / sample name")}${box("cond","Condition")}${box("memo","Notes")}${box("used","Mark used wells with ✕")}
+    </div>
+    <p class="muted" style="margin:0">Each selected item becomes its own plate-shaped grid (${TYPES[exp.wells].r}×${TYPES[exp.wells].c}), stacked one under another.</p>
+    ${preview}
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn sm" data-act="exportCopy" ${grids.length?"":"disabled"}>Copy for Excel</button>
+      <button class="btn sm primary" data-act="exportSave" ${grids.length?"":"disabled"}>Save as CSV</button>
+    </div>
+  </div>`;
+}
+function exportFileName(exp){
+  const base = (exp.name || "plate").replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, "_").slice(0, 60);
+  return `${base}_platemap_${today()}.csv`;
+}
+async function saveCSV(filename, text){
+  const data = "\ufeff" + text;
+  let dl = null;
+  try { dl = window.claude?.use ? await window.claude.use("downloads") : null; } catch(_){ dl = null; }
+  if(dl){
+    try { await dl.save({ filename, data }); toast("CSV file saved"); }
+    catch(e){ if(e?.code !== "declined") toast("Could not save the file. Use Copy for Excel instead"); }
+    return;
+  }
+  if(window.claude?.use){ toast("File saving is not available here. Use Copy for Excel instead"); return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], {type:"text/csv;charset=utf-8"}));
+  a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  toast("CSV file saved");
+}
+function copyText(text, okMsg){
+  const fallback = () => { const ta=document.createElement("textarea"); ta.value=text; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); toast(okMsg); }catch(_){ toast("Could not copy"); } ta.remove(); };
+  try { navigator.clipboard.writeText(text).then(()=>toast(okMsg), fallback); } catch(_){ fallback(); }
+}
+
+function legendHTML(exp){
+  const open = state.legendOpen;
+  const items = exp.groups.map(g => `<li><button class="lg-item ${state.kind==="group"&&g.id===state.activeGroup?"active":""}" data-group="${esc(g.id)}" title="${esc(g.name)}${g.condition?" · "+esc(g.condition):""}">
+      <i class="sw" style="background:${esc(g.color)}"></i><span class="lg-n">${esc(g.name||"Untitled")}</span><span class="lg-c">${g.wells.length}</span></button></li>`).join("");
+  const used = exp.uses.reduce((n,u)=>n+u.wells.length,0);
+  return `<aside class="legend ${open?"":"closed"}" aria-label="Group legend">
+    <button class="lg-toggle" data-act="legend" aria-expanded="${open}">${open?"Groups ▾":"Groups ▸"}</button>
+    ${open ? (exp.groups.length || used ? `<ul class="lg-list">${items}${used?`<li><span class="lg-item static"><i class="xmark" aria-hidden="true"></i><span class="lg-n">Used</span><span class="lg-c">${used}</span></span></li>`:""}</ul>`
+             : `<p class="lg-empty">No groups</p>`) : ""}
+  </aside>`;
+}
+
+/* ---------- in-app usage guide (web app builds provide window.PLATE_HELP) ---------- */
+function renderHelp(){
+  const H = window.PLATE_HELP; let el = document.getElementById("help");
+  if(state.helpIdx === null || !H){ if(el){ el.remove(); document.body.style.overflow = ""; } return; }
+  const i = state.helpIdx, n = H.items.length;
+  if(!el){ el = document.createElement("div"); el.id = "help"; el.className = "help"; el.setAttribute("role","dialog"); el.setAttribute("aria-modal","true"); document.body.appendChild(el); }
+  document.body.style.overflow = "hidden";
+  el.setAttribute("aria-label", "How to use");
+  el.innerHTML = `<div class="help-bar"><h2>How to use</h2><span class="help-n">${i+1} / ${n}</span>
+      <div class="help-tabs">${H.items.map((it,k)=>`<button data-help="${k}" aria-current="${k===i}">${k+1}. ${esc(it.title)}</button>`).join("")}</div>
+      <button class="btn sm" data-act="helpClose">Close ✕</button></div>
+    <div class="help-body" id="helpBody"><img src="${esc(H.items[i].src)}" alt="${esc(H.items[i].title)}"></div>
+    <div class="help-nav"><button class="btn sm" data-act="helpPrev" ${i===0?"disabled":""}>‹ Back</button><span class="help-hint">Tap the image to zoom</span>
+      <button class="btn sm primary" data-act="${i===n-1?"helpClose":"helpNext"}">${i===n-1?"Start using":"Next ›"}</button></div>`;
+  el.querySelector("#helpBody").scrollTop = 0;
+  const img = el.querySelector("#helpBody img");
+  img.addEventListener("click", () => { img.classList.toggle("zoomed"); });
+  el.querySelector("[data-act=helpClose]").focus();
+}
+function openHelp(i){ state.helpIdx = i; renderHelp(); }
+function closeHelp(){ state.helpIdx = null; renderHelp(); try{ localStorage.setItem("plate-tracker-help-seen","1"); }catch(_){} }
+let helpTouch = null;
+document.addEventListener("touchstart", e => { if(e.target.closest?.("#helpBody")) helpTouch = { x:e.touches[0].clientX, y:e.touches[0].clientY }; }, { passive:true });
+document.addEventListener("touchend", e => {
+  if(!helpTouch || state.helpIdx === null) return;
+  const dx = e.changedTouches[0].clientX - helpTouch.x, dy = e.changedTouches[0].clientY - helpTouch.y; helpTouch = null;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5){
+    const n = window.PLATE_HELP.items.length;
+    openHelp(Math.min(n-1, Math.max(0, state.helpIdx + (dx < 0 ? 1 : -1))));
+  }
+}, { passive:true });
+
+/* ---------- duplicate a plate ---------- */
+function dupPanelHTML(exp){
+  const nUse = exp.uses.reduce((n,u)=>n+u.wells.length,0);
+  return `<div class="export dup">
+    <div class="export-h"><h3>Duplicate plate</h3><button class="btn sm" data-act="dupNo">Close</button></div>
+    <p class="muted" style="margin:0">Creates a new plate with the same format, project, description and group layout (wells · color · name · condition · notes). The new plate starts as <b>Planned</b>.</p>
+    <label class="f">New plate name<input class="inp" id="dup-name" value="${esc((exp.name||"") + " (copy)")}"></label>
+    <div class="checks" role="group" aria-label="Duplicate options">
+      <label><input type="checkbox" id="dup-dates"> Copy dates too (seeding · experiment · treatment)</label>
+      <label><input type="checkbox" id="dup-uses" ${nUse?"":"disabled"}> Copy use records too${nUse?` (${nUse} wells)`:" (none)"}</label>
+    </div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn sm" data-act="dupNo">Cancel</button>
+      <button class="btn sm primary" data-act="dupYes">Duplicate</button>
+    </div>
+  </div>`;
+}
+function duplicateExp(exp){
+  const keepDates = !!$("#dup-dates")?.checked, keepUses = !!$("#dup-uses")?.checked;
+  const name = ($("#dup-name")?.value || "").trim() || (exp.name || "") + " (copy)";
+  const copy = JSON.parse(JSON.stringify(exp));
+  copy.id = uid(); copy.name = name; copy.status = "plan"; copy.example = false;
+  copy.createdAt = new Date().toISOString(); delete copy.doneDate; delete copy.updatedAt;
+  if(!keepDates){ copy.seedDate = ""; copy.date = ""; }
+  copy.groups = copy.groups.map(g => ({ ...g, id: uid(), date: keepDates ? (g.date || "") : "" }));
+  copy.uses = keepUses ? copy.uses.map(u => ({ ...u, id: uid() })) : [];
+  if(copy.seedDate && copy.seedDate <= today()) copy.status = "active";
+  state.exps = [...state.exps, copy];
+  store.save(copy);
+  openExp(copy.id);
+  toast("Duplicated. Add dates with Edit details");
+}
+
+/* ---------- light / dark theme choice (standalone & web app builds) ---------- */
+const THEMES = [["auto","◐ Auto"],["light","☀ Light"],["dark","☾ Dark"]];
+function currentTheme(){ try{ return localStorage.getItem("plate-tracker-theme") || "auto"; }catch(_){ return "auto"; } }
+function applyTheme(t){
+  if(t === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", t);
+  const b = $("#themeBtn"); if(b){ const th = THEMES.find(x=>x[0]===t) || THEMES[0]; b.textContent = th[1]; b.title = "Theme: " + th[1].slice(2) + " (click to change)"; }
+}
+function cycleTheme(){
+  const i = THEMES.findIndex(x=>x[0]===currentTheme()); const next = THEMES[(i+1) % THEMES.length][0];
+  try{ localStorage.setItem("plate-tracker-theme", next); }catch(_){}
+  applyTheme(next);
+}
+
+function hoverHTML(exp){
+  const w = state.hover; if(!w) return `<span>Tap or hover over a well to see its details.</span>`;
+  const g = groupOf(exp,w), u = useOf(exp,w);
+  let h = `<span class="wid">${w}</span>`;
+  h += g ? `<span><i class="sw" style="background:${esc(g.color)}"></i> ${esc(g.name)}</span>${g.date?`<span>Treated ${esc(withDay(exp,g.date))}</span>`:""}${g.condition?`<span>${esc(g.condition)}</span>`:""}`
+         : `<span>No group</span>`;
+  if(u) h += `<span class="usedtag"><i class="xmark" aria-hidden="true"></i> Used ${esc(withDay(exp,u.date))}${u.purpose?` · ${esc(u.purpose)}`:""}</span>`;
+  return h;
+}
+
+function newFormHTML(){
+  const f = state.newForm, editing = state.view==="edit", exp = current();
+  const locked = editing && exp && (exp.groups.length || exp.uses.length);
+  const dayPreview = f.seedDate && f.date ? dayLabel(dayNum(f.seedDate, f.date)) : "";
+  return `<section class="panel">
+    <div class="panel-h"><h2>${editing?"Edit experiment":"New experiment"}</h2><span class="eyebrow">${editing?"plate info":"step 1 / choose plate"}</span></div>
+    <form class="panel-b" id="newForm" autocomplete="off">
+      <label class="f">Experiment name<input class="inp" id="nf-name" required placeholder="e.g. HeLa MTT assay #1" value="${esc(f.name)}"></label>
+      <div class="two">
+        <label class="f">Project (optional)<input class="inp" id="nf-project" list="projectList" placeholder="e.g. Drug A screening" value="${esc(f.project)}">
+          <datalist id="projectList">${projectNames().map(p=>`<option value="${esc(p)}"></option>`).join("")}</datalist></label>
+        <div class="f" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:500">Status
+          <div class="seg seg3" role="group" aria-label="Status">${Object.keys(STATUS).map(k=>`<button type="button" data-nfstatus="${k}" aria-pressed="${f.status===k}">${STATUS[k]}</button>`).join("")}</div></div>
+      </div>
+      <div class="two">
+        <label class="f">Seeding date (Day 0)<input class="inp" type="date" id="nf-seed" value="${esc(f.seedDate)}"></label>
+        <label class="f">Experiment date<input class="inp" type="date" id="nf-date" value="${esc(f.date)}"></label>
+      </div>
+      <p class="muted" style="margin:-4px 0 0" id="nf-daynote">${f.seedDate?`The seeding date counts as Day 0.${dayPreview?` The experiment date is <b class="dayref">${dayPreview}</b>.`:""}`:"With a seeding date, the plate shows which day it is today. You can leave it empty."}</p>
+      <div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted);font-weight:500">Plate format${locked?" (locked because groups exist)":""}
+        <div class="types">${Object.keys(TYPES).map(n => `<button type="button" class="type" data-type="${n}" aria-pressed="${+n===f.type}" ${locked&&+n!==f.type?"disabled":""}><b>${n}</b><small>${TYPES[n].r}×${TYPES[n].c}</small></button>`).join("")}</div>
+      </div>
+      <label class="f">Description (optional)<textarea class="inp" id="nf-desc" placeholder="Cell line, aim, protocol number">${esc(f.desc)}</textarea></label>
+      <div class="row" style="justify-content:flex-end">
+        <button type="button" class="btn" data-act="cancelNew">Cancel</button>
+        <button type="submit" class="btn primary">${editing?"Save":"Create plate map"}</button>
+      </div>
+    </form></section>`;
+}
+
+function renderSide(){
+  const side = $("#sideR"), exp = current();
+  if(state.view!=="plate" || !exp){ side.innerHTML = ""; side.hidden = true; return; }
+  side.hidden = false;
+  const isUse = state.kind==="use";
+  const d = state.draft, ud = state.useDraft;
+  const editing = isUse ? exp.uses.find(u=>u.id===state.activeUse) : exp.groups.find(g=>g.id===state.activeGroup);
+  const custom = !PALETTE.includes(d.color);
+  const selWells = [...state.sel];
+  const noGroup = isUse ? selWells.filter(w=>!groupOf(exp,w)).length : 0;
+  const fields = isUse ? `
+        <p class="muted" style="margin:0">Marks the selected wells as taken out for another experiment. Their original treatment group stays, and the plate shows an ✕.</p>
+        <label class="f">Date used<input class="inp" type="date" id="u-date" value="${esc(ud.date)}"></label>
+        ${exp.seedDate&&ud.date?`<p class="muted" style="margin:-6px 0 0">From seeding: <b class="dayref">${dayOf(exp,ud.date)}</b></p>`:""}
+        <label class="f">Used for<input class="inp" id="u-purpose" placeholder="e.g. Western blot, qPCR, moved to plate 2" value="${esc(ud.purpose)}"></label>
+        <label class="f">Notes<textarea class="inp" id="u-memo" placeholder="Harvest method, sample IDs">${esc(ud.memo)}</textarea></label>
+        ${noGroup?`<p class="muted" style="margin:0">${noGroup} of the selected wells have no treatment group yet.</p>`:""}`
+    : `
+        <label class="f">Group / sample name<input class="inp" id="g-name" placeholder="e.g. Control, Drug A 10 µM" value="${esc(d.name)}"></label>
+        <label class="chk"><input type="checkbox" id="g-label" ${d.showLabel?"checked":""}> Show this group name on the plate</label>
+        <div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted);font-weight:500">Color
+          <div class="swatches">${PALETTE.map(c=>`<button type="button" class="swatch" data-color="${c}" style="background:${c}" aria-label="Color ${c}" aria-pressed="${c===d.color}"></button>`).join("")}
+            <input type="color" class="custom-color" id="g-color" value="${esc(d.color)}" aria-label="Pick a custom color" title="Custom color" ${custom?'style="outline:2px solid var(--fg)"':""}></div></div>
+        <label class="f">Treatment date<input class="inp" type="date" id="g-date" value="${esc(d.date)}"></label>
+        ${exp.seedDate&&d.date?`<p class="muted" style="margin:-6px 0 0">From seeding: <b class="dayref">${dayOf(exp,d.date)}</b></p>`:""}
+        <label class="f">Condition<input class="inp" id="g-cond" placeholder="e.g. 10 µM, 24 h, 37 °C" value="${esc(d.condition)}"></label>
+        <label class="f">Notes<textarea class="inp" id="g-memo" placeholder="passage, seeding density, notes">${esc(d.memo)}</textarea></label>`;
+  side.innerHTML = `
+    <section class="panel">
+      <div class="panel-h"><h2>${editing?(isUse?"Edit use record":"Edit group"):(isUse?"Record use":"Group details")}</h2>${editing?`<span class="editing-tag">Editing</span>`:`<span class="eyebrow">step 2</span>`}</div>
+      <form class="panel-b" id="gForm" autocomplete="off">
+        <div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted);font-weight:500">Type
+          <div class="seg" role="group" aria-label="Type">
+            <button type="button" data-kind="group" aria-pressed="${!isUse}">Treatment group</button>
+            <button type="button" data-kind="use" aria-pressed="${isUse}">Used (taken out)</button>
+          </div></div>
+        <div class="f" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:500">Selected wells (${state.sel.size})
+          <div class="wells-sum">${esc(summarize(selWells))}</div></div>
+        ${fields}
+        <div class="row" style="justify-content:flex-end">
+          ${editing?`<button type="button" class="btn danger sm" data-act="${isUse?"delUse":"delGroup"}">${isUse?"Delete record":"Delete group"}</button><button type="button" class="btn sm" data-act="cancelEdit">${isUse?"New record":"New group"}</button>`:""}
+          <button type="submit" class="btn primary" ${state.sel.size?"":"disabled"}>${editing?"Save changes":(isUse?"Save use record":"Save group")}</button>
+        </div>
+        ${state.sel.size?"":`<p class="muted" style="margin:0">Select wells on the plate first.</p>`}
+      </form>
+    </section>
+    <section class="panel">
+      <div class="panel-h"><h2>Groups</h2><span class="eyebrow">${exp.groups.length} groups</span></div>
+      ${exp.groups.length ? `<ul class="groups">${exp.groups.map(g => {
+        const usedN = g.wells.filter(w=>useOf(exp,w)).length;
+        return `<li><button class="group ${state.kind==="group"&&g.id===state.activeGroup?"active":""}" data-group="${esc(g.id)}">
+        <i class="sw" style="background:${esc(g.color)}"></i><span class="gn">${esc(g.name||"Untitled")}</span><span class="gc">${usedN?`${g.wells.length-usedN}/${g.wells.length} left`:`${g.wells.length} wells`}</span>
+        <span class="gd"><span><span class="k">WELL</span>${esc(summarize(g.wells))}</span>
+        ${g.date?`<span><span class="k">DATE</span>${esc(withDay(exp,g.date))}</span>`:""}
+        ${g.condition?`<span><span class="k">COND</span>${esc(g.condition)}</span>`:""}
+        ${g.memo?`<span><span class="k">MEMO</span>${esc(g.memo)}</span>`:""}</span></button></li>`;}).join("")}</ul>`
+        : `<p class="muted" style="padding:14px;margin:0">No groups yet. Select wells, fill in the details and save.</p>`}
+    </section>
+    <section class="panel">
+      <div class="panel-h"><h2>Use records</h2><span class="eyebrow">${exp.uses.length} records</span></div>
+      ${exp.uses.length ? `<ul class="groups">${[...exp.uses].sort((a,b)=>(a.date||"").localeCompare(b.date||"")).map(u => `<li><button class="group ${state.kind==="use"&&u.id===state.activeUse?"active":""}" data-use="${esc(u.id)}">
+        <i class="xmark" aria-hidden="true"></i><span class="gn">${esc(u.purpose||"Used")}</span><span class="gc">${u.wells.length} wells</span>
+        <span class="gd"><span><span class="k">WELL</span>${esc(summarize(u.wells))}</span>
+        ${u.date?`<span><span class="k">DATE</span>${esc(withDay(exp,u.date))}</span>`:""}
+        ${u.memo?`<span><span class="k">MEMO</span>${esc(u.memo)}</span>`:""}</span></button></li>`).join("")}</ul>`
+        : `<p class="muted" style="padding:14px;margin:0">No wells used yet. Choose "Used" as the type, select wells and save.</p>`}
+    </section>`;
+}
+
+/* ---------- selection on the plate ---------- */
+let drag = null;
+document.addEventListener("pointerdown", e => {
+  const well = e.target.closest?.(".well"); if(!well) return;
+  state.hover = well.dataset.w; const hl=$("#hoverLine"); if(hl && current()) hl.innerHTML = hoverHTML(current());
+  if(state.pan) return;
+  e.preventDefault();
+  const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+  const a = parseWell(well.dataset.w);
+  drag = { a, base: additive ? new Set(state.sel) : new Set(), removing: additive && state.sel.has(well.dataset.w), moved:false };
+  well.closest("#grid").setPointerCapture?.(e.pointerId);
+  applyDrag(a);
+});
+document.addEventListener("pointermove", e => {
+  const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".well");
+  if(drag){ if(el){ drag.moved=true; applyDrag(parseWell(el.dataset.w)); } return; }
+  const w = el?.dataset.w || null;
+  if(w !== state.hover && current() && state.view==="plate"){ state.hover = w; const h=$("#hoverLine"); if(h) h.innerHTML = hoverHTML(current()); }
+});
+document.addEventListener("pointerup", () => { if(!drag) return; drag=null; readDraft(); renderSide(); renderBench(); });
+function applyDrag(b){
+  const { a, base, removing } = drag;
+  const next = new Set(base);
+  for(let r=Math.min(a.r,b.r); r<=Math.max(a.r,b.r); r++)
+    for(let c=Math.min(a.c,b.c); c<=Math.max(a.c,b.c); c++){ const w=wellId(r,c); removing ? next.delete(w) : next.add(w); }
+  state.sel = next;
+  document.querySelectorAll("#grid .well").forEach(el => el.classList.toggle("sel", next.has(el.dataset.w)));
+  const sc = document.querySelector(".selcount"); if(sc) sc.textContent = next.size + " selected";
+}
+function selectLine(kind, idx, additive){
+  const t = TYPES[current().wells], ws=[];
+  if(kind==="row") for(let c=0;c<t.c;c++) ws.push(wellId(idx,c));
+  else if(kind==="col") for(let r=0;r<t.r;r++) ws.push(wellId(r,idx));
+  else for(let r=0;r<t.r;r++) for(let c=0;c<t.c;c++) ws.push(wellId(r,c));
+  readDraft();
+  const base = additive ? new Set(state.sel) : new Set();
+  const allIn = additive && ws.every(w=>base.has(w));
+  ws.forEach(w => allIn ? base.delete(w) : base.add(w));
+  state.sel = base; renderBench(); renderSide();
+}
+
+/* ---------- clicks ---------- */
+document.addEventListener("click", e => {
+  const t = e.target.closest("button,[data-exp]"); if(!t || t.disabled) return;
+  const exp = current();
+  if(t.dataset.exp){ openExp(t.dataset.exp); return; }
+  if(t.dataset.row) return selectLine("row", +t.dataset.row, e.shiftKey||e.ctrlKey||e.metaKey);
+  if(t.dataset.col) return selectLine("col", +t.dataset.col, e.shiftKey||e.ctrlKey||e.metaKey);
+  if(t.dataset.all) return selectLine("all", 0, false);
+  if(t.dataset.help){ openHelp(+t.dataset.help); return; }
+  if(t.dataset.nfstatus){ readNewForm(); state.newForm.status = t.dataset.nfstatus; state.newForm.statusTouched = true; renderBench(); return; }
+  if(t.dataset.type){ readNewForm(); state.newForm.type = +t.dataset.type; renderBench(); return; }
+  if(t.dataset.color){ readDraft(); state.draft.color = t.dataset.color; renderSide(); return; }
+  if(t.dataset.kind){
+    readDraft(); if(state.kind===t.dataset.kind) return;
+    const wasEditing = state.activeGroup || state.activeUse;
+    state.kind = t.dataset.kind; state.activeGroup=null; state.activeUse=null;
+    if(wasEditing) state.sel = new Set();
+    renderAll(); return;
+  }
+  if(t.dataset.group){
+    const g = exp.groups.find(x=>x.id===t.dataset.group);
+    if(state.kind==="group" && state.activeGroup===g.id){ resetEditor(); }
+    else { state.kind="group"; state.activeUse=null; state.activeGroup=g.id; state.sel=new Set(g.wells); state.draft={name:g.name,color:g.color,date:g.date||"",condition:g.condition||"",memo:g.memo||"",showLabel:!!g.showLabel}; }
+    renderAll(); return;
+  }
+  if(t.dataset.use){
+    const u = exp.uses.find(x=>x.id===t.dataset.use);
+    if(state.kind==="use" && state.activeUse===u.id){ resetEditor(); }
+    else { state.kind="use"; state.activeGroup=null; state.activeUse=u.id; state.sel=new Set(u.wells); state.useDraft={date:u.date||"",purpose:u.purpose||"",memo:u.memo||""}; }
+    renderAll(); return;
+  }
+  switch(t.dataset.act){
+    case "new":
+      state.view="new"; state.newForm={name:"",type:96,date:"",seedDate:"",desc:"",project:state.projectFilter||"",status:"plan",statusTouched:false}; renderAll(); setTimeout(()=>$("#nf-name")?.focus(),0); break;
+    case "editExp":
+      state.view="edit"; state.newForm={name:exp.name||"",type:exp.wells,date:exp.date||"",seedDate:exp.seedDate||"",desc:exp.desc||"",project:exp.project||"",status:exp.status||"plan",statusTouched:true}; renderAll(); break;
+    case "cancelNew": state.view = state.exps.length ? "plate":"empty"; if(!current() && state.exps[0]) state.currentId=state.exps[0].id; renderAll(); break;
+    case "clearSel": readDraft(); state.sel=new Set(); renderBench(); renderSide(); break;
+    case "cancelEdit": resetEditor(); renderAll(); break;
+    case "delGroup": {
+      exp.groups = exp.groups.filter(g=>g.id!==state.activeGroup); resetEditor(); store.save(exp); renderAll(); toast("Group deleted"); break; }
+    case "delUse": {
+      exp.uses = exp.uses.filter(u=>u.id!==state.activeUse); resetEditor(); store.save(exp); renderAll(); toast("Use record deleted"); break; }
+    case "delExp": state.confirmDel = exp.id; renderBench(); break;
+    case "delExpNo": state.confirmDel = null; renderBench(); break;
+    case "delExpYes": { const id=exp.id; state.confirmDel=null; state.exps=state.exps.filter(x=>x.id!==id); state.currentId=state.exps[0]?.id||null;
+      state.view = state.currentId?"plate":"empty"; resetEditor(); store.remove(id); renderAll(); toast("Experiment deleted"); break; }
+    case "csv": copyCSV(exp); break;
+    case "help": openHelp(0); break;
+    case "theme": cycleTheme(); break;
+    case "helpClose": closeHelp(); break;
+    case "helpPrev": openHelp(Math.max(0, state.helpIdx - 1)); break;
+    case "helpNext": openHelp(Math.min(window.PLATE_HELP.items.length - 1, state.helpIdx + 1)); break;
+    case "legend": state.legendOpen = !state.legendOpen; try{ localStorage.setItem("plate-tracker-legend", state.legendOpen?"1":"0"); }catch(_){} renderBench(); break;
+    case "startExp": exp.status = "active"; store.save(exp); renderAll(); toast("Status set to Running"); break;
+    case "doneExp": state.confirmDone = true; state.doneDraft = today(); renderBench(); break;
+    case "doneNo": state.confirmDone = false; renderBench(); break;
+    case "dupExp": state.dupOpen = !state.dupOpen; state.confirmDone = false; renderBench(); if(state.dupOpen) setTimeout(()=>{ const i=$("#dup-name"); i?.focus(); i?.select(); },0); break;
+    case "dupNo": state.dupOpen = false; renderBench(); break;
+    case "dupYes": duplicateExp(exp); break;
+    case "doneYes": exp.status = "done"; exp.doneDate = $("#doneDate")?.value || today(); state.confirmDone = false; store.save(exp); renderAll(); toast("Experiment marked as done"); break;
+    case "reopenExp": exp.status = "active"; delete exp.doneDate; store.save(exp); renderAll(); toast("Status set back to Running"); break;
+    case "statusAll": case "status": state.statusFilter = t.dataset.status || "all"; renderList(); break;
+    case "proj": { const k = t.dataset.proj; state.collapsed.has(k) ? state.collapsed.delete(k) : state.collapsed.add(k); renderList(); break; }
+    case "auth": doAuth(); break;
+    case "exportMap": state.exportOpen = !state.exportOpen; renderBench(); break;
+    case "exportClose": state.exportOpen = false; renderBench(); break;
+    case "exportCopy": copyText(exportTable(exp, "\t"), "Copied. Paste it into an empty Excel cell"); break;
+    case "exportSave": saveCSV(exportFileName(exp), exportTable(exp, ",")); break;
+    case "zoomIn": state.zoom = Math.min(3, state.zoom + 0.5); renderBench(); break;
+    case "zoomOut": state.zoom = Math.max(1, state.zoom - 0.5); renderBench(); break;
+    case "pan": state.pan = !state.pan; renderBench(); break;
+    case "toEditor": readDraft(); $("#sideR")?.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start"}); break;
+  }
+});
+$("#search").addEventListener("input", e => { state.q = e.target.value; renderList(); });
+
+document.addEventListener("input", e => {
+  if(e.target.id==="g-color"){ readDraft(); state.draft.color = e.target.value; document.querySelectorAll(".swatch").forEach(s=>s.setAttribute("aria-pressed","false")); }
+});
+document.addEventListener("change", e => {
+  const id = e.target.id;
+  if(id==="g-color" || id==="g-date" || id==="u-date"){ readDraft(); renderSide(); }
+  if(id==="nf-seed" || id==="nf-date"){ readNewForm(); if(id==="nf-seed" && !state.newForm.statusTouched) state.newForm.status = defaultStatus(state.newForm); renderBench(); }
+  if(id==="labelSize"){ const exp=current(); exp.labelSize = +e.target.value; store.save(exp); renderBench(); $("#labelSize")?.focus(); return; }
+  if(id.startsWith("ex-")){ state.exportOpts[id.slice(3)] = e.target.checked; renderBench(); document.getElementById(id)?.focus(); }
+});
+
+document.addEventListener("submit", e => {
+  e.preventDefault();
+  if(e.target.id==="newForm"){
+    readNewForm(); const f = state.newForm;
+    if(!f.name.trim()){ $("#nf-name").focus(); toast("Enter an experiment name"); return; }
+    if(state.view==="edit"){
+      const exp = current();
+      Object.assign(exp, { name:f.name.trim(), date:f.date, seedDate:f.seedDate, desc:f.desc.trim(), project:f.project, status:f.status });
+      if(f.status !== "done") delete exp.doneDate; else exp.doneDate ||= today();
+      if(!exp.groups.length && !exp.uses.length) exp.wells = f.type;
+      state.view="plate"; store.save(exp); renderAll(); toast("Experiment details saved"); return;
+    }
+    const exp = { id: uid(), name:f.name.trim(), wells:f.type, date:f.date, seedDate:f.seedDate, desc:f.desc.trim(), project:f.project, status:f.status, groups:[], uses:[], createdAt:new Date().toISOString() };
+    if(f.status === "done") exp.doneDate = today();
+    state.exps = [...state.exps, exp]; state.currentId = exp.id; state.view="plate"; resetEditor();
+    store.save(exp); renderAll(); toast("Experiment created. Select wells to make a group");
+  }
+  if(e.target.id==="gForm"){
+    readDraft(); const exp = current(); if(!state.sel.size) return;
+    const wells = sortWells(state.sel);
+    if(state.kind==="use"){
+      const ud = state.useDraft;
+      let u = exp.uses.find(x=>x.id===state.activeUse);
+      if(!u){ u = { id: uid() }; exp.uses.push(u); }
+      Object.assign(u, { date:ud.date, purpose:ud.purpose.trim(), memo:ud.memo.trim(), wells });
+      exp.uses.forEach(o => { if(o!==u) o.wells = o.wells.filter(w=>!state.sel.has(w)); });
+      exp.uses = exp.uses.filter(o => o.wells.length);
+      const wasEdit = !!state.activeUse;
+      store.save(exp); resetEditor(); renderAll(); toast(wasEdit?"Changes saved":`Marked ${wells.length} well(s) as used`);
+      return;
+    }
+    const d = state.draft;
+    let g = exp.groups.find(x=>x.id===state.activeGroup);
+    const name = d.name.trim() || `Group ${exp.groups.length + (g?0:1)}`;
+    if(!g){ g = { id: uid() }; exp.groups.push(g); }
+    Object.assign(g, { name, color:d.color, date:d.date, condition:d.condition.trim(), memo:d.memo.trim(), showLabel:!!d.showLabel, wells });
+    exp.groups.forEach(o => { if(o!==g) o.wells = o.wells.filter(w=>!state.sel.has(w)); });
+    exp.groups = exp.groups.filter(o => o.wells.length);
+    const wasEdit = !!state.activeGroup;
+    store.save(exp); resetEditor(); renderAll(); toast(wasEdit?"Changes saved":"Group saved");
+  }
+});
+
+function readDraft(){
+  if(!$("#gForm")) return; const v=id=>document.getElementById(id)?.value;
+  if($("#g-name")) Object.assign(state.draft,{ name:v("g-name")??"", date:v("g-date")??"", condition:v("g-cond")??"", memo:v("g-memo")??"", showLabel:!!$("#g-label")?.checked });
+  if($("#u-date")) Object.assign(state.useDraft,{ date:v("u-date")??"", purpose:v("u-purpose")??"", memo:v("u-memo")??"" });
+}
+function readNewForm(){ if(!$("#newForm")) return; const v=id=>document.getElementById(id).value;
+  Object.assign(state.newForm,{ name:v("nf-name"), date:v("nf-date"), seedDate:v("nf-seed"), desc:v("nf-desc"), project:v("nf-project").trim() }); }
+function resetEditor(){
+  const exp=current(); const used = new Set((exp?.groups||[]).map(g=>g.color));
+  state.activeGroup=null; state.activeUse=null; state.sel=new Set();
+  state.draft={ name:"", color: PALETTE.find(c=>!used.has(c)) || PALETTE[0], date: "", condition:"", memo:"", showLabel: !!state.draft.showLabel };
+  state.useDraft={ date: state.useDraft.date || today(), purpose:"", memo:"" };
+}
+function openExp(id){ state.zoom=1; state.exportOpen=false; state.confirmDone=false; state.dupOpen=false; state.currentId=id; state.view="plate"; state.kind="group"; state.confirmDel=null; state.hover=null; resetEditor(); renderAll(); }
+
+function copyCSV(exp){
+  const q = s => `"${String(s??"").replace(/"/g,'""')}"`;
+  const t = TYPES[exp.wells], lines = ["Well,Group,Color,Treatment date,Treatment day,Condition,Memo,Used,Used date,Used day,Used for,Use memo"];
+  for(let r=0;r<t.r;r++) for(let c=0;c<t.c;c++){ const w=wellId(r,c), g=groupOf(exp,w), u=useOf(exp,w);
+    lines.push([w, g?.name, g?.color, g?.date, g?.date&&exp.seedDate?dayOf(exp,g.date):"", g?.condition, g?.memo,
+      u?"Y":"", u?.date, u?.date&&exp.seedDate?dayOf(exp,u.date):"", u?.purpose, u?.memo].map(q).join(",")); }
+  const text = lines.join("\n");
+  const fallback = () => { const ta=document.createElement("textarea"); ta.value=text; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); toast("CSV copied. Paste it into Excel"); }catch(_){ toast("Could not copy"); } ta.remove(); };
+  try { navigator.clipboard.writeText(text).then(()=>toast("CSV copied. Paste it into Excel"), fallback); } catch(_){ fallback(); }
+}
+document.addEventListener("keydown", e => {
+  if(state.helpIdx === null) return;
+  const n = window.PLATE_HELP.items.length;
+  if(e.key === "Escape"){ e.stopImmediatePropagation(); closeHelp(); }
+  else if(e.key === "ArrowRight") openHelp(Math.min(n-1, state.helpIdx + 1));
+  else if(e.key === "ArrowLeft") openHelp(Math.max(0, state.helpIdx - 1));
+}, true);
+document.addEventListener("keydown", e => { if(e.key==="Escape" && state.view==="plate" && state.sel.size){ state.sel=new Set(); renderBench(); renderSide(); } });
+
+try{ if(localStorage.getItem("plate-tracker-legend")==="0") state.legendOpen=false; }catch(_){}
+if(window.PLATE_APP){ $("#themeBtn").hidden = false; applyTheme(currentTheme()); }
+if(window.PLATE_HELP){
+  $("#helpBtn").hidden = false;
+  let seen = true; try{ seen = !!localStorage.getItem("plate-tracker-help-seen"); }catch(_){}
+  if(!seen) setTimeout(() => openHelp(0), 300);
+}
+/* ---------- backup: export / import JSON (standalone version) ---------- */
+document.getElementById("exportBtn").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify({app:"plate-map-tracker",version:2,exportedAt:new Date().toISOString(),experiments:state.exps},null,2)],{type:"application/json"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `plate-map-backup-${today()}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  toast("Backup saved");
+});
+document.getElementById("importInp").addEventListener("change", async e => {
+  const f = e.target.files[0]; if(!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    const list = Array.isArray(data) ? data : data.experiments;
+    if(!Array.isArray(list)) throw 0;
+    const valid = list.filter(x => x && x.id && TYPES[x.wells] && Array.isArray(x.groups));
+    valid.forEach(x => { x.uses ||= []; });
+    const map = new Map(state.exps.map(x=>[x.id,x])); valid.forEach(x => map.set(x.id, x));
+    state.exps = [...map.values()];
+    if(store.mode === "remote") valid.forEach(x => store.save(x)); else store.writeLocal(state.exps);
+    if(!current() && state.exps[0]){ state.currentId = state.exps[0].id; state.view="plate"; }
+    renderAll(); toast(`Loaded ${valid.length} experiment(s)`);
+  } catch(_){ toast("Could not read the backup. Check that it is a JSON file exported from this app"); }
+  e.target.value = "";
+});
+try { navigator.storage?.persist?.(); } catch(_){}
+if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(()=>{});
+try { localStorage.setItem("plate-tracker-lang", document.documentElement.lang); } catch(_){}
+
+renderAll();
+})();
+</script>
+<script type="module">
+// Google login + real-time cloud sync (Firebase). If this fails to load, the app keeps working on this device only.
+import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
+const app = initializeApp({"apiKey": "AIzaSyAahIgcefZ1dx_OTLbHESbQrU_64raQvTw", "authDomain": "plate-map-a860c.firebaseapp.com", "projectId": "plate-map-a860c", "storageBucket": "plate-map-a860c.firebasestorage.app", "messagingSenderId": "291692292128", "appId": "1:291692292128:web:5359bef77aec9b2d217445"});
+const auth = getAuth(app);
+let db;
+try { db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+catch (_) { db = initializeFirestore(app, {}); }
+getRedirectResult(auth).catch(() => {});
+let unsub = null;
+const plates = uid => collection(db, "users", uid, "plates");
+window.__plateStore?.attachRemote({
+  onAuth: cb => onAuthStateChanged(auth, u => cb(u ? { uid: u.uid, email: u.email || u.displayName || "" } : null)),
+  watch(uid, onList, onStatus) {
+    unsub?.();
+    unsub = onSnapshot(plates(uid), { includeMetadataChanges: true },
+      snap => { onList(snap.docs.map(d => ({ ...d.data(), id: d.id }))); onStatus({ pending: snap.metadata.hasPendingWrites, fromCache: snap.metadata.fromCache }); },
+      err => onStatus({ error: err.code }));
+  },
+  stop() { unsub?.(); unsub = null; },
+  save: (uid, id, body) => setDoc(doc(db, "users", uid, "plates", id), body),
+  remove: (uid, id) => deleteDoc(doc(db, "users", uid, "plates", id)),
+  async signIn() {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    try { await signInWithPopup(auth, provider); }
+    catch (e) {
+      if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment"].includes(e.code)) return signInWithRedirect(auth, provider);
+      if (e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") return;
+      throw e;
+    }
+  },
+  signOut: () => signOut(auth),
+});
+</script>
+
+</body>
+</html>
